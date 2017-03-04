@@ -72,115 +72,329 @@ PUBLIC_IP=${VPN_PUBLIC_IP:-''}
 check_ip "$PUBLIC_IP" || PUBLIC_IP=$(wget -t 3 -T 15 -qO- http://ipv4.icanhazip.com)
 check_ip "$PUBLIC_IP" || exiterr "Cannot find valid public IP. Define it in your 'env' file as 'VPN_PUBLIC_IP'."
 
-L2TP_NET=${VPN_L2TP_NET:-'192.168.42.0/24'}
-L2TP_LOCAL=${VPN_L2TP_LOCAL:-'192.168.42.1'}
-L2TP_POOL=${VPN_L2TP_POOL:-'192.168.42.10-192.168.42.250'}
-XAUTH_NET=${VPN_XAUTH_NET:-'192.168.43.0/24'}
-XAUTH_POOL=${VPN_XAUTH_POOL:-'192.168.43.10-192.168.43.250'}
-DNS_SRV1=${VPN_DNS_SRV1:-'8.8.8.8'}
-DNS_SRV2=${VPN_DNS_SRV2:-'8.8.4.4'}
 
-# Create IPsec (Libreswan) config
+
+# Create IPsec (strongswan) config
 cat > /etc/ipsec.conf <<EOF
-version 2.0
-
+# ipsec.conf - strongSwan IPsec configuration file
 config setup
-  virtual_private=%v4:10.0.0.0/8,%v4:192.168.0.0/16,%v4:172.16.0.0/12,%v4:!$L2TP_NET,%v4:!$XAUTH_NET
-  protostack=netkey
-  nhelpers=0
-  interfaces=%defaultroute
-  uniqueids=no
+    uniqueids=never 
 
-conn shared
-  left=%defaultroute
-  leftid=$PUBLIC_IP
-  right=%any
-  encapsulation=yes
-  authby=secret
-  pfs=no
-  rekey=no
-  keyingtries=5
-  dpddelay=30
-  dpdtimeout=120
-  dpdaction=clear
-  ike=3des-sha1,3des-sha1;modp1024,aes-sha1,aes-sha1;modp1024,aes-sha2,aes-sha2;modp1024
-  phase2alg=3des-sha1,aes-sha1,aes-sha2
-  sha2-truncbug=yes
+conn iOS_cert
+    keyexchange=ikev1
+    # strongswan version >= 5.0.2, compatible with iOS 6.0,6.0.1
+    fragmentation=yes
+    left=%defaultroute
+    leftauth=pubkey
+    leftsubnet=0.0.0.0/0
+    leftcert=server.cert.pem
+    right=%any
+    rightauth=pubkey
+    rightauth2=xauth
+    rightsourceip=10.31.2.0/24
+    rightcert=client.cert.pem
+    auto=add
 
-conn l2tp-psk
-  auto=add
-  leftprotoport=17/1701
-  rightprotoport=17/%any
-  type=transport
-  phase2=esp
-  also=shared
+conn android_xauth_psk
+    keyexchange=ikev1
+    left=%defaultroute
+    leftauth=psk
+    leftsubnet=0.0.0.0/0
+    right=%any
+    rightauth=psk
+    rightauth2=xauth
+    rightsourceip=10.31.2.0/24
+    auto=add
 
-conn xauth-psk
-  auto=add
-  leftsubnet=0.0.0.0/0
-  rightaddresspool=$XAUTH_POOL
-  modecfgdns1=$DNS_SRV1
-  modecfgdns2=$DNS_SRV2
-  leftxauthserver=yes
-  rightxauthclient=yes
-  leftmodecfgserver=yes
-  rightmodecfgclient=yes
-  modecfgpull=yes
-  xauthby=file
-  ike-frag=yes
-  ikev2=never
-  cisco-unity=yes
-  also=shared
+conn networkmanager-strongswan
+    keyexchange=ikev2
+    left=%defaultroute
+    leftauth=pubkey
+    leftsubnet=0.0.0.0/0
+    leftcert=server.cert.pem
+    right=%any
+    rightauth=pubkey
+    rightsourceip=10.31.2.0/24
+    rightcert=client.cert.pem
+    auto=add
+
+conn windows7
+    keyexchange=ikev2
+    ike=aes256-sha1-modp1024!
+    rekey=no
+    left=%defaultroute
+    leftauth=pubkey
+    leftsubnet=0.0.0.0/0
+    leftcert=server.cert.pem
+    right=%any
+    rightauth=eap-mschapv2
+    rightsourceip=10.31.2.0/24
+    rightsendcert=never
+    eap_identity=%any
+    auto=add
+
+conn win8-win10-ikev2
+    keyexchange=ikev2
+    leftsendcert=always
+    left=%defaultroute
+    leftfirewall=yes
+    leftsubnet=0.0.0.0/0
+    leftcert=server.cert.pem
+    right=%any
+    rightsourceip=10.31.2.0/24
+    auto=add
+
+
+conn osx10-ios9-ikev2
+    keyexchange=ikev2
+    left=%defaultroute
+    leftfirewall=yes
+    leftsubnet=0.0.0.0/0
+    leftcert=server.cert.pem
+    leftsendcert=always
+    right=%any
+    rightsourceip=10.31.2.0/24
+#leftid="xxx.org"
+#rightid="*@xxx.org"
+    leftid="$PUBLIC_IP"
+    rightid="*@$PUBLIC_IP"
+    auto=add
+
+conn iOS-IKEV2
+    #strictcrlpolicy=no
+    auto=add
+    dpdaction=clear
+    keyexchange=ikev2
+    #left
+    left=%any
+    leftsubnet=0.0.0.0/0
+    leftauth=psk
+    leftsendcert=always
+    leftid=mydigiserver
+    #right
+    right=%any
+    rightsourceip=10.31.2.0/24
+    rightauth=eap-mschapv2
+    rightid=mydigiclient
+
+
+include /var/lib/strongswan/ipsec.conf.inc
 EOF
 
 # Specify IPsec PSK
 cat > /etc/ipsec.secrets <<EOF
-%any  %any  : PSK "$VPN_IPSEC_PSK"
+#%any  %any  : PSK "$VPN_IPSEC_PSK"
+
+# this file is managed with debconf and will contain the automatically created private key
+include /var/lib/strongswan/ipsec.secrets.inc
+: RSA server.pem
+: PSK "$VPN_IPSEC_PSK"
+: XAUTH "$VPN_IPSEC_PSK"
+simon %any : EAP "12345678"
+$VPN_USER %any : EAP "$VPN_PASSWORD"
+
+
+
+EOF
+# Creat strongswan.conf
+
+cat > /etc/strongswan.conf << EOF
+# strongswan.conf - strongSwan configuration file
+#
+# Refer to the strongswan.conf(5) manpage for details
+#
+# Configuration changes should be made in the included files
+charon {
+        load_modular = yes
+        duplicheck.enable = no
+        compress = yes
+        plugins {
+                include strongswan.d/charon/*.conf
+        }
+        dns1 = 8.8.8.8
+        dns2 = 8.8.4.4
+        nbns1 = 8.8.8.8
+        nbns2 = 8.8.4.4
+}
+include strongswan.d/*.conf
 EOF
 
-# Create xl2tpd config
-cat > /etc/xl2tpd/xl2tpd.conf <<EOF
-[global]
-port = 1701
+# generate cert
+ipsec pki --gen --outform pem > ca.pem
 
-[lns default]
-ip range = $L2TP_POOL
-local ip = $L2TP_LOCAL
-require chap = yes
-refuse pap = yes
-require authentication = yes
-name = l2tpd
-pppoptfile = /etc/ppp/options.xl2tpd
-length bit = yes
-EOF
+ipsec pki --self --in ca.pem --dn "C=com, O=DigiOceanvpn, CN=DigiOceanVPN CA" --ca --outform pem >ca.cert.pem
 
-# Set xl2tpd options
-cat > /etc/ppp/options.xl2tpd <<EOF
-ipcp-accept-local
-ipcp-accept-remote
-ms-dns $DNS_SRV1
-ms-dns $DNS_SRV2
-noccp
-auth
-mtu 1280
-mru 1280
-proxyarp
-lcp-echo-failure 4
-lcp-echo-interval 30
-connect-delay 5000
-EOF
+ipsec pki --gen --outform pem > server.pem
 
-# Create VPN credentials
-cat > /etc/ppp/chap-secrets <<EOF
-# Secrets for authentication using CHAP
-# client  server  secret  IP addresses
-"$VPN_USER" l2tpd "$VPN_PASSWORD" *
-EOF
+ipsec pki --pub --in server.pem | ipsec pki --issue --cacert ca.cert.pem \
+--cakey ca.pem --dn "C=com, O=DigiOceanvpn, CN=104.236.183.70" \
+--san="104.236.183.70" --flag serverAuth --flag ikeIntermediate \
+--outform pem > server.cert.pem
 
-VPN_PASSWORD_ENC=$(openssl passwd -1 "$VPN_PASSWORD")
-cat > /etc/ipsec.d/passwd <<EOF
-$VPN_USER:$VPN_PASSWORD_ENC:xauth-psk
-EOF
+ipsec pki --gen --outform pem > client.pem
+
+ipsec pki --pub --in client.pem | ipsec pki --issue --cacert ca.cert.pem --cakey ca.pem --dn "C=com, O=DigiOceanvpn, CN=DigiOceanVPN Client" \
+--san="simon@104.236.183.70"  \
+--outform pem > client.cert.pem
+
+openssl pkcs12 -export -inkey client.pem -in client.cert.pem -name "client" -certfile ca.cert.pem -caname "DigiOceanVPN CA"  -out client.cert.p12
+
+
+openssl base64 -in client.cert.p12 -out client.cert.p12.b64
+
+
+
+openssl x509 -outform der -in ca.cert.pem -out ca.cert.crt
+
+
+cp -r ca.cert.pem /etc/ipsec.d/cacerts/
+cp -r server.cert.pem /etc/ipsec.d/certs/
+cp -r server.pem /etc/ipsec.d/private/
+cp -r client.cert.pem /etc/ipsec.d/certs/
+cp -r client.pem  /etc/ipsec.d/private/
+
+
+# generate mobileconfig for ios
+
+#read -p "Please input username:" username
+username="simon"
+#read -p "Please input userpassword:" password
+password="12345678"
+#read -p "Please input RemoteAddress:" your_server_address
+your_server_address="104.236.183.70"
+#read -p "Please input RemoteIdentifier:" leftid
+leftid="mydigiserver"
+#read -p "Please input LocalIdentifier:" rightid
+rightid="mydigiclient"
+#read -p "Please input SharedSecret:" your_psk
+your_psk="12345678"
+#read -p "Please input UserDefinedName:" UserDefinedName
+UserDefinedName="link-to-digi"
+#read -p "Please input ConfigureDiscriptionName:" PayloadDisplayName
+PayloadDisplayName="Digital Ocean VPN"
+uuid1=`uuidgen`
+uuid2=`uuidgen`
+uuid3=`uuidgen`
+uuid4=`uuidgen`
+
+
+rm -r -f tmp.mobiconfig
+
+echo   '<?xml version="1.0" encoding="UTF-8"?> '>> tmp.mobiconfig
+echo   '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"> '>> tmp.mobiconfig
+echo   '<plist version="1.0"> '>> tmp.mobiconfig
+echo   '<dict> '>> tmp.mobiconfig
+echo   '<key>PayloadContent</key> '>> tmp.mobiconfig
+echo   '<array> '>> tmp.mobiconfig
+echo   '<dict> '>> tmp.mobiconfig
+echo   '<key>IKEv2</key> '>> tmp.mobiconfig
+echo   '<dict> '>> tmp.mobiconfig
+echo   '<key>AuthName</key> '>> tmp.mobiconfig
+echo   "<string>"${username}"</string>" >> tmp.mobiconfig
+echo   '<key>AuthPassword</key> '>> tmp.mobiconfig
+echo   "<string>"${password}"</string> " >> tmp.mobiconfig
+echo   '<key>AuthenticationMethod</key> '>> tmp.mobiconfig
+echo   '<string>SharedSecret</string> '>> tmp.mobiconfig
+echo   '<key>ChildSecurityAssociationParameters</key> '>> tmp.mobiconfig
+echo   '<dict> '>> tmp.mobiconfig
+echo   '<key>DiffieHellmanGroup</key> '>> tmp.mobiconfig
+echo   '<integer>2</integer> '>> tmp.mobiconfig
+echo   '<key>EncryptionAlgorithm</key> '>> tmp.mobiconfig
+echo   '<string>3DES</string> '>> tmp.mobiconfig
+echo   '<key>IntegrityAlgorithm</key> '>> tmp.mobiconfig
+echo   '<string>SHA1-96</string> '>> tmp.mobiconfig
+echo   '<key>LifeTimeInMinutes</key> '>> tmp.mobiconfig
+echo   '<integer>1440</integer> '>> tmp.mobiconfig
+echo   '</dict> '>> tmp.mobiconfig
+echo   '<key>DeadPeerDetectionRate</key> '>> tmp.mobiconfig
+echo   '<string>Medium</string> '>> tmp.mobiconfig
+echo   '<key>DisableMOBIKE</key> '>> tmp.mobiconfig
+echo   '<integer>0</integer> '>> tmp.mobiconfig
+echo   '<key>DisableRedirect</key> '>> tmp.mobiconfig
+echo   '<integer>0</integer> '>> tmp.mobiconfig
+echo   '<key>EnableCertificateRevocationCheck</key> '>> tmp.mobiconfig
+echo   '<integer>0</integer> '>> tmp.mobiconfig
+echo   '<key>EnablePFS</key> '>> tmp.mobiconfig
+echo   '<integer>0</integer> '>> tmp.mobiconfig
+echo   '<key>ExtendedAuthEnabled</key> '>> tmp.mobiconfig
+echo   '<true/> '>> tmp.mobiconfig
+echo   '<key>IKESecurityAssociationParameters</key> '>> tmp.mobiconfig
+echo   '<dict> '>> tmp.mobiconfig
+echo   '<key>DiffieHellmanGroup</key> '>> tmp.mobiconfig
+echo   '<integer>2</integer> '>> tmp.mobiconfig
+echo   '<key>EncryptionAlgorithm</key> '>> tmp.mobiconfig
+echo   '<string>3DES</string> '>> tmp.mobiconfig
+echo   '<key>IntegrityAlgorithm</key> '>> tmp.mobiconfig
+echo   '<string>SHA1-96</string> '>> tmp.mobiconfig
+echo   '<key>LifeTimeInMinutes</key> '>> tmp.mobiconfig
+echo   '<integer>1440</integer> '>> tmp.mobiconfig
+echo   '</dict> '>> tmp.mobiconfig
+echo   '<key>LocalIdentifier</key> '>> tmp.mobiconfig
+echo   "<string>"${rightid}"</string> " >> tmp.mobiconfig
+echo   '<key>RemoteAddress</key> '>> tmp.mobiconfig
+echo   "<string>"${your_server_address}"</string> " >> tmp.mobiconfig
+echo   '<key>RemoteIdentifier</key> '>> tmp.mobiconfig
+echo   "<string>"${leftid}"</string> " >> tmp.mobiconfig
+echo   '<key>SharedSecret</key> '>> tmp.mobiconfig
+echo   "<string>"${your_psk}"</string> " >> tmp.mobiconfig
+echo   '<key>UseConfigurationAttributeInternalIPSubnet</key> '>> tmp.mobiconfig
+echo   '<integer>0</integer> '>> tmp.mobiconfig
+echo   '</dict> '>> tmp.mobiconfig
+echo   '<key>IPv4</key> '>> tmp.mobiconfig
+echo   '<dict> '>> tmp.mobiconfig
+echo   '<key>OverridePrimary</key> '>> tmp.mobiconfig
+echo   '<integer>1</integer> '>> tmp.mobiconfig
+echo   '</dict> '>> tmp.mobiconfig
+echo   '<key>PayloadDescription</key> '>> tmp.mobiconfig
+echo   '<string>Configures VPN settings</string> '>> tmp.mobiconfig
+echo   '<key>PayloadDisplayName</key> '>> tmp.mobiconfig
+echo   '<string>VPN</string> '>> tmp.mobiconfig
+echo   '<key>PayloadIdentifier</key> '>> tmp.mobiconfig
+echo   "<string>com.apple.vpn.managed."${uuid1}"</string> ">> tmp.mobiconfig
+echo   '<key>PayloadType</key> '>> tmp.mobiconfig
+echo   '<string>com.apple.vpn.managed</string> '>> tmp.mobiconfig
+echo   '<key>PayloadUUID</key> '>> tmp.mobiconfig
+echo   "<string>"${uuid2}"</string> ">> tmp.mobiconfig
+echo   '<key>PayloadVersion</key> '>> tmp.mobiconfig
+echo   '<real>1</real> '>> tmp.mobiconfig
+echo   '<key>Proxies</key> '>> tmp.mobiconfig
+echo   '<dict> '>> tmp.mobiconfig
+echo   '<key>HTTPEnable</key> '>> tmp.mobiconfig
+echo   '<integer>0</integer> '>> tmp.mobiconfig
+echo   '<key>HTTPSEnable</key> '>> tmp.mobiconfig
+echo   '<integer>0</integer> '>> tmp.mobiconfig
+echo   '</dict> '>> tmp.mobiconfig
+echo   '<key>UserDefinedName</key> '>> tmp.mobiconfig
+echo   "<string>"${UserDefinedName}"</string> " >> tmp.mobiconfig
+echo   '<key>VPNType</key> '>> tmp.mobiconfig
+echo   '<string>IKEv2</string> '>> tmp.mobiconfig
+echo   '<key>VendorConfig</key> '>> tmp.mobiconfig
+echo   '<dict/> '>> tmp.mobiconfig
+echo   '</dict> '>> tmp.mobiconfig
+echo   '</array> '>> tmp.mobiconfig
+echo   '<key>PayloadDisplayName</key> '>> tmp.mobiconfig
+echo   "<string>"${PayloadDisplayName}"</string> ">> tmp.mobiconfig
+echo   '<key>PayloadIdentifier</key> '>> tmp.mobiconfig
+echo   "<string>"${uuid3}"</string> ">> tmp.mobiconfig
+echo   '<key>PayloadRemovalDisallowed</key> '>> tmp.mobiconfig
+echo   '<false/> '>> tmp.mobiconfig
+echo   '<key>PayloadType</key> '>> tmp.mobiconfig
+echo   '<string>Configuration</string> '>> tmp.mobiconfig
+echo   '<key>PayloadUUID</key> '>> tmp.mobiconfig
+echo   "<string>"${uuid4}"</string> ">> tmp.mobiconfig
+echo   '<key>PayloadVersion</key> '>> tmp.mobiconfig
+echo   '<integer>1</integer> '>> tmp.mobiconfig
+echo   '</dict> '>> tmp.mobiconfig
+echo   '</plist> '>> tmp.mobiconfig
+
+mv tmp.mobiconfig arctg.mobileconfig
+
+echo  "Sending config file to client mailbox ...."
+
+echo "This is the iOS moblie configure file." | mutt -s "Mobile config of arctg" simon-zhou@outlook.com -a /root/arctg.mobileconfig
+
+echo "OK!"
+
 
 # Update sysctl settings
 SYST='/sbin/sysctl -e -q -w'
@@ -210,27 +424,24 @@ $SYST net.ipv4.tcp_rmem="10240 87380 12582912"
 $SYST net.ipv4.tcp_wmem="10240 87380 12582912"
 
 # Create IPTables rules
-iptables -I INPUT 1 -p udp --dport 1701 -m policy --dir in --pol none -j DROP
-iptables -I INPUT 2 -m conntrack --ctstate INVALID -j DROP
-iptables -I INPUT 3 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-iptables -I INPUT 4 -p udp -m multiport --dports 500,4500 -j ACCEPT
-iptables -I INPUT 5 -p udp --dport 1701 -m policy --dir in --pol ipsec -j ACCEPT
-iptables -I INPUT 6 -p udp --dport 1701 -j DROP
-iptables -I FORWARD 1 -m conntrack --ctstate INVALID -j DROP
-iptables -I FORWARD 2 -i eth+ -o ppp+ -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-iptables -I FORWARD 3 -i ppp+ -o eth+ -j ACCEPT
-iptables -I FORWARD 4 -i ppp+ -o ppp+ -s "$L2TP_NET" -d "$L2TP_NET" -j ACCEPT
-iptables -I FORWARD 5 -i eth+ -d "$XAUTH_NET" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-iptables -I FORWARD 6 -s "$XAUTH_NET" -o eth+ -j ACCEPT
-# Uncomment if you wish to disallow traffic between VPN clients themselves
-# iptables -I FORWARD 2 -i ppp+ -o ppp+ -s "$L2TP_NET" -d "$L2TP_NET" -j DROP
-# iptables -I FORWARD 3 -s "$XAUTH_NET" -d "$XAUTH_NET" -j DROP
-iptables -A FORWARD -j DROP
-iptables -t nat -I POSTROUTING -s "$XAUTH_NET" -o eth+ -m policy --dir out --pol none -j MASQUERADE
-iptables -t nat -I POSTROUTING -s "$L2TP_NET" -o eth+ -j MASQUERADE
+iptables -A FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT
+iptables -A FORWARD -s 10.31.0.0/24  -j ACCEPT
+iptables -A FORWARD -s 10.31.1.0/24  -j ACCEPT
+iptables -A FORWARD -s 10.31.2.0/24  -j ACCEPT
+iptables -A INPUT -i eth0 -p esp -j ACCEPT
+iptables -A INPUT -i eth0 -p udp --dport 500 -j ACCEPT
+iptables -A INPUT -i eth0 -p tcp --dport 500 -j ACCEPT
+iptables -A INPUT -i eth0 -p udp --dport 4500 -j ACCEPT
+iptables -A INPUT -i eth0 -p udp --dport 1701 -j ACCEPT
+iptables -A INPUT -i eth0 -p tcp --dport 1723 -j ACCEPT
+iptables -A FORWARD -j REJECT
+iptables -t nat -A POSTROUTING -s 10.31.0.0/24 -o eth0 -j MASQUERADE
+iptables -t nat -A POSTROUTING -s 10.31.1.0/24 -o eth0 -j MASQUERADE
+iptables -t nat -A POSTROUTING -s 10.31.2.0/24 -o eth0 -j MASQUERADE
+
 
 # Update file attributes
-chmod 600 /etc/ipsec.secrets /etc/ppp/chap-secrets /etc/ipsec.d/passwd
+chmod 600 /etc/ipsec.secrets 
 
 cat <<EOF
 
@@ -258,8 +469,6 @@ EOF
 modprobe af_key
 
 # Start services
-mkdir -p /var/run/pluto /var/run/xl2tpd
-rm -f /var/run/pluto/pluto.pid /var/run/xl2tpd.pid
 
 /usr/local/sbin/ipsec start --config /etc/ipsec.conf
-exec /usr/sbin/xl2tpd -D -c /etc/xl2tpd/xl2tpd.conf
+
