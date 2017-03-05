@@ -9,7 +9,7 @@ RUN apt-get update && \
 COPY ./run.sh /opt/src/run.sh
 RUN chmod 755 /opt/src/run.sh
 
-EXPOSE 500/udp 4500/udp
+EXPOSE 500/udp 500/tcp 4500/udp 1701/udp 1723/tcp
 
 VOLUME ["/lib/modules"]
 VOLUME ["/data"]

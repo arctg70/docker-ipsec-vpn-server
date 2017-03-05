@@ -242,7 +242,7 @@ else
 
     openssl pkcs12 -export -inkey client.pem -in client.cert.pem \
         -name "client" -certfile ca.cert.pem \
-        -caname "DigiOceanVPN CA"  -out client.cert.p12
+        -caname "StrongSwanVPN CA"  -out client.cert.p12
 
     openssl base64 -in client.cert.p12 -out client.cert.p12.b64
 
@@ -387,7 +387,9 @@ echo   '<integer>1</integer> '>> tmp.mobiconfig
 echo   '</dict> '>> tmp.mobiconfig
 echo   '</plist> '>> tmp.mobiconfig
 
-mv tmp.mobiconfig arctg.mobileconfig
+mv tmp.mobiconfig $VPN_USER.mobileconfig
+
+cp $VPN_USER.mobileconfig /data
 
 # echo  "Sending config file to client mailbox ...."
 

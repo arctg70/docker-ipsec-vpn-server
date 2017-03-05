@@ -73,8 +73,9 @@ docker run \
     -p 500:500/udp \
     -p 4500:4500/udp \
     -v /lib/modules:/lib/modules:ro \
+    -v ./data:/data:rw \
     -d --privileged \
-    hwdsl2/ipsec-vpn-server
+    arctg70/strongswan-docker
 ```
 
 ### Retrieve VPN login details
@@ -82,7 +83,7 @@ docker run \
 If you did not specify an `env` file in the `docker run` command above, `VPN_USER` will default to `vpnuser` and both `VPN_IPSEC_PSK` and `VPN_PASSWORD` will be randomly generated. To retrieve them, view the container logs:
 
 ```
-docker logs ipsec-vpn-server
+docker logs strongswan-docker
 ```
 
 Search for these lines in the output:
