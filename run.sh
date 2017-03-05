@@ -217,43 +217,46 @@ include strongswan.d/*.conf
 EOF
 
 # generate cert
-ipsec pki --gen --outform pem > ca.pem
 
-ipsec pki --self --in ca.pem --dn "C=com, O=DigiOceanvpn, CN=DigiOceanVPN CA" \
-    --ca --outform pem >ca.cert.pem
+if [ -f "/opt/src/ca.pem" ];then
+    echo the ca files already has been created.
+else
+    ipsec pki --gen --outform pem > ca.pem
 
-ipsec pki --gen --outform pem > server.pem
+    ipsec pki --self --in ca.pem --dn "C=com, O=StrongSwanVPN, CN=StrongSwanVPN CA" \
+        --ca --outform pem >ca.cert.pem
 
-ipsec pki --pub --in server.pem | ipsec pki --issue --cacert ca.cert.pem \
-    --cakey ca.pem --dn "C=com, O=DigiOceanvpn, CN=104.236.183.70" \
-    --san="104.236.183.70" --flag serverAuth --flag ikeIntermediate \
-    --outform pem > server.cert.pem
+    ipsec pki --gen --outform pem > server.pem
 
-ipsec pki --gen --outform pem > client.pem
+    ipsec pki --pub --in server.pem | ipsec pki --issue --cacert ca.cert.pem \
+        --cakey ca.pem --dn "C=com, O=StrongSwanVPN, CN=$VPN_PUBLIC_IP" \
+        --san="$VPN_PUBLIC_IP" --flag serverAuth --flag ikeIntermediate \
+        --outform pem > server.cert.pem
 
-ipsec pki --pub --in client.pem | ipsec pki --issue --cacert ca.cert.pem \
-    --cakey ca.pem --dn "C=com, O=DigiOceanvpn, CN=DigiOceanVPN Client" \
-    --san="simon@104.236.183.70"  \
-    --outform pem > client.cert.pem
+    ipsec pki --gen --outform pem > client.pem
 
-openssl pkcs12 -export -inkey client.pem -in client.cert.pem \
-    -name "client" -certfile ca.cert.pem \
-    -caname "DigiOceanVPN CA"  -out client.cert.p12
+    ipsec pki --pub --in client.pem | ipsec pki --issue --cacert ca.cert.pem \
+        --cakey ca.pem --dn "C=com, O=StrongSwanVPN, CN=StrongSwanVPN Client" \
+        --san="$VPN_USER@$VPN_PUBLIC_IP"  \
+        --outform pem > client.cert.pem
 
-openssl base64 -in client.cert.p12 -out client.cert.p12.b64
+    openssl pkcs12 -export -inkey client.pem -in client.cert.pem \
+        -name "client" -certfile ca.cert.pem \
+        -caname "DigiOceanVPN CA"  -out client.cert.p12
 
-openssl x509 -outform der -in ca.cert.pem -out ca.cert.crt
+    openssl base64 -in client.cert.p12 -out client.cert.p12.b64
 
-cp -r ca.cert.pem /etc/ipsec.d/cacerts/
-cp -r server.cert.pem /etc/ipsec.d/certs/
-cp -r server.pem /etc/ipsec.d/private/
-cp -r client.cert.pem /etc/ipsec.d/certs/
-cp -r client.pem  /etc/ipsec.d/private/
+    openssl x509 -outform der -in ca.cert.pem -out ca.cert.crt
+
+    cp -r ca.cert.pem /etc/ipsec.d/cacerts/
+    cp -r server.cert.pem /etc/ipsec.d/certs/
+    cp -r server.pem /etc/ipsec.d/private/
+    cp -r client.cert.pem /etc/ipsec.d/certs/
+    cp -r client.pem  /etc/ipsec.d/private/
 
 
-# generate mobileconfig for ios
-
-#read -p "Please input username:" username
+# generate mobileconfig file for IOS
+    
 username="$VPN_USER"
 #read -p "Please input userpassword:" password
 password="$VPN_PASSWORD"
@@ -391,7 +394,7 @@ mv tmp.mobiconfig arctg.mobileconfig
 # echo "This is the iOS moblie configure file." | mutt -s "Mobile config of arctg" simon-zhou@outlook.com -a /root/arctg.mobileconfig
 
 # echo "OK!"
-
+fi
 
 # Update sysctl settings
 SYST='/sbin/sysctl -e -q -w'
