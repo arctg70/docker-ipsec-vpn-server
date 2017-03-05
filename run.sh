@@ -472,5 +472,4 @@ modprobe af_key
 
 # Start services
 
-ipsec start 
-
+ipsec start --nofork
