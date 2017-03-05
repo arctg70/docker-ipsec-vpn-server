@@ -170,34 +170,31 @@ conn iOS-IKEV2
     leftsubnet=0.0.0.0/0
     leftauth=psk
     leftsendcert=always
-    leftid=mydigiserver
+    leftid=myVPNserver
     #right
     right=%any
     rightsourceip=10.31.2.0/24
     rightauth=eap-mschapv2
-    rightid=mydigiclient
-
+    rightid=myVPNclient
 
 include /var/lib/strongswan/ipsec.conf.inc
 EOF
 
 # Specify IPsec PSK
 cat > /etc/ipsec.secrets <<EOF
-#%any  %any  : PSK "$VPN_IPSEC_PSK"
+# %any  %any  : PSK "$VPN_IPSEC_PSK"
 
 # this file is managed with debconf and will contain the automatically created private key
 include /var/lib/strongswan/ipsec.secrets.inc
 : RSA server.pem
 : PSK "$VPN_IPSEC_PSK"
 : XAUTH "$VPN_IPSEC_PSK"
-simon %any : EAP "12345678"
+# simon %any : EAP "12345678"
 $VPN_USER %any : EAP "$VPN_PASSWORD"
 
-
-
 EOF
-# Creat strongswan.conf
 
+# Creat strongswan.conf
 cat > /etc/strongswan.conf << EOF
 # strongswan.conf - strongSwan configuration file
 #
@@ -222,30 +219,30 @@ EOF
 # generate cert
 ipsec pki --gen --outform pem > ca.pem
 
-ipsec pki --self --in ca.pem --dn "C=com, O=DigiOceanvpn, CN=DigiOceanVPN CA" --ca --outform pem >ca.cert.pem
+ipsec pki --self --in ca.pem --dn "C=com, O=DigiOceanvpn, CN=DigiOceanVPN CA" \
+    --ca --outform pem >ca.cert.pem
 
 ipsec pki --gen --outform pem > server.pem
 
 ipsec pki --pub --in server.pem | ipsec pki --issue --cacert ca.cert.pem \
---cakey ca.pem --dn "C=com, O=DigiOceanvpn, CN=104.236.183.70" \
---san="104.236.183.70" --flag serverAuth --flag ikeIntermediate \
---outform pem > server.cert.pem
+    --cakey ca.pem --dn "C=com, O=DigiOceanvpn, CN=104.236.183.70" \
+    --san="104.236.183.70" --flag serverAuth --flag ikeIntermediate \
+    --outform pem > server.cert.pem
 
 ipsec pki --gen --outform pem > client.pem
 
-ipsec pki --pub --in client.pem | ipsec pki --issue --cacert ca.cert.pem --cakey ca.pem --dn "C=com, O=DigiOceanvpn, CN=DigiOceanVPN Client" \
---san="simon@104.236.183.70"  \
---outform pem > client.cert.pem
+ipsec pki --pub --in client.pem | ipsec pki --issue --cacert ca.cert.pem \
+    --cakey ca.pem --dn "C=com, O=DigiOceanvpn, CN=DigiOceanVPN Client" \
+    --san="simon@104.236.183.70"  \
+    --outform pem > client.cert.pem
 
-openssl pkcs12 -export -inkey client.pem -in client.cert.pem -name "client" -certfile ca.cert.pem -caname "DigiOceanVPN CA"  -out client.cert.p12
-
+openssl pkcs12 -export -inkey client.pem -in client.cert.pem \
+    -name "client" -certfile ca.cert.pem \
+    -caname "DigiOceanVPN CA"  -out client.cert.p12
 
 openssl base64 -in client.cert.p12 -out client.cert.p12.b64
 
-
-
 openssl x509 -outform der -in ca.cert.pem -out ca.cert.crt
-
 
 cp -r ca.cert.pem /etc/ipsec.d/cacerts/
 cp -r server.cert.pem /etc/ipsec.d/certs/
@@ -257,21 +254,21 @@ cp -r client.pem  /etc/ipsec.d/private/
 # generate mobileconfig for ios
 
 #read -p "Please input username:" username
-username="simon"
+username="$VPN_USER"
 #read -p "Please input userpassword:" password
-password="12345678"
+password="$VPN_PASSWORD"
 #read -p "Please input RemoteAddress:" your_server_address
-your_server_address="104.236.183.70"
+your_server_address="$VPN_PUBLIC_IP"
 #read -p "Please input RemoteIdentifier:" leftid
-leftid="mydigiserver"
+leftid="myVPNserver"
 #read -p "Please input LocalIdentifier:" rightid
-rightid="mydigiclient"
+rightid="myVPNclient"
 #read -p "Please input SharedSecret:" your_psk
-your_psk="12345678"
+your_psk="$VPN_IPSEC_PSK"
 #read -p "Please input UserDefinedName:" UserDefinedName
-UserDefinedName="link-to-digi"
+UserDefinedName="link-to-DokerVPN"
 #read -p "Please input ConfigureDiscriptionName:" PayloadDisplayName
-PayloadDisplayName="Digital Ocean VPN"
+PayloadDisplayName="Docker VPN"
 uuid1=`uuidgen`
 uuid2=`uuidgen`
 uuid3=`uuidgen`
@@ -389,11 +386,11 @@ echo   '</plist> '>> tmp.mobiconfig
 
 mv tmp.mobiconfig arctg.mobileconfig
 
-echo  "Sending config file to client mailbox ...."
+# echo  "Sending config file to client mailbox ...."
 
-echo "This is the iOS moblie configure file." | mutt -s "Mobile config of arctg" simon-zhou@outlook.com -a /root/arctg.mobileconfig
+# echo "This is the iOS moblie configure file." | mutt -s "Mobile config of arctg" simon-zhou@outlook.com -a /root/arctg.mobileconfig
 
-echo "OK!"
+# echo "OK!"
 
 
 # Update sysctl settings
