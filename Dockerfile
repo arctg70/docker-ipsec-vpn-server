@@ -3,7 +3,7 @@ MAINTAINER  arctg70 <simon.zhou@gmail.com>
 
 RUN apt-get update && \
     apt-get upgrade -y --force-yes &&\
-    apt-get install -y strongswan strongswan-plugin-eap-mschapv2 strongswan-plugin-xauth-generic wget 
+    apt-get install -y strongswan wget 
 
 
 COPY ./run.sh /opt/src/run.sh
