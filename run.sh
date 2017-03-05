@@ -472,5 +472,5 @@ modprobe af_key
 
 # Start services
 
-ipsec start --config /etc/ipsec.conf
+ipsec start 
 
