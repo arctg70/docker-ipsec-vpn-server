@@ -229,15 +229,15 @@ else
     ipsec pki --gen --outform pem > server.pem
 
     ipsec pki --pub --in server.pem | ipsec pki --issue --cacert ca.cert.pem \
-        --cakey ca.pem --dn "C=com, O=StrongSwanVPN, CN=$VPN_PUBLIC_IP" \
-        --san="$VPN_PUBLIC_IP" --flag serverAuth --flag ikeIntermediate \
+        --cakey ca.pem --dn "C=com, O=StrongSwanVPN, CN=$PUBLIC_IP" \
+        --san="$PUBLIC_IP" --flag serverAuth --flag ikeIntermediate \
         --outform pem > server.cert.pem
 
     ipsec pki --gen --outform pem > client.pem
 
     ipsec pki --pub --in client.pem | ipsec pki --issue --cacert ca.cert.pem \
         --cakey ca.pem --dn "C=com, O=StrongSwanVPN, CN=StrongSwanVPN Client" \
-        --san="$VPN_USER@$VPN_PUBLIC_IP"  \
+        --san="$VPN_USER@$PUBLIC_IP"  \
         --outform pem > client.cert.pem
 
     openssl pkcs12 -export -inkey client.pem -in client.cert.pem \
@@ -261,7 +261,7 @@ username="$VPN_USER"
 #read -p "Please input userpassword:" password
 password="$VPN_PASSWORD"
 #read -p "Please input RemoteAddress:" your_server_address
-your_server_address="$VPN_PUBLIC_IP"
+your_server_address="$PUBLIC_IP"
 #read -p "Please input RemoteIdentifier:" leftid
 leftid="myVPNserver"
 #read -p "Please input LocalIdentifier:" rightid
