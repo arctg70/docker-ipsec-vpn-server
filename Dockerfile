@@ -3,8 +3,7 @@ MAINTAINER  arctg70 <simon.zhou@gmail.com>
 
 RUN apt-get update && \
     apt-get upgrade -y --force-yes &&\
-    apt-get install -y strongswan libcharon-extra-plugins &&\
-            wget dnsutils iptables uuid-runtime kmod openssl
+    apt-get install -y strongswan libcharon-extra-plugins wget dnsutils iptables uuid-runtime kmod openssl
 
 
 COPY ./run.sh /opt/src/run.sh
