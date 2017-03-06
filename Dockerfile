@@ -3,7 +3,7 @@ MAINTAINER  arctg70 <simon.zhou@gmail.com>
 
 RUN apt-get update && \
     apt-get upgrade -y --force-yes &&\
-    apt-get install -y strongswan wget dnsutils iptables uuid-runtime kmod
+    apt-get install -y strongswan wget dnsutils iptables uuid-runtime kmod ndppd openssl
 
 
 COPY ./run.sh /opt/src/run.sh
