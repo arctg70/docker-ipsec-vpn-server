@@ -242,10 +242,12 @@ else
 
 # Enter a password twice when you are prompted by the next command, which will 
 # combine the client key and certificate into a single Public Key Cryptography Standard (PKCS) #12 file:
+    PKCS12PASS=123456
     openssl pkcs12 -export -inkey client.pem -in client.cert.pem \
         -name "client" -certfile ca.cert.pem \
-        -caname "StrongSwanVPN CA"  -out client.cert.p12
-
+        -caname "StrongSwanVPN CA"  -out client.cert.p12 \
+        -passout pass:$PKCS12PASS
+        
     openssl base64 -in client.cert.p12 -out client.cert.p12.b64
 
     openssl x509 -outform der -in ca.cert.pem -out ca.cert.crt
@@ -393,6 +395,7 @@ mv tmp.mobiconfig $VPN_USER.mobileconfig
 
 cp $VPN_USER.mobileconfig /data
 cp ca.cert.pem /data
+cp client.cert.p12 /data
 
 # echo  "Sending config file to client mailbox ...."
 
