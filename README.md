@@ -32,7 +32,7 @@ First, [install and run Docker](https://docs.docker.com/engine/installation/linu
 Get the trusted build from the [Docker Hub registry](https://hub.docker.com/r/hwdsl2/ipsec-vpn-server):
 
 ```
-docker pull hwdsl2/ipsec-vpn-server
+docker pull arctg70/strongswan-docker
 ```
 
 Alternatively, you may [build from source code](https://github.com/hwdsl2/docker-ipsec-vpn-server#build-from-source-code) on GitHub.
@@ -67,13 +67,14 @@ Create a new Docker container from this image (replace `./vpn.env` with your own
 
 ```
 docker run \
-    --name ipsec-vpn-server \
+    --name vpnserver \
     --env-file ./vpn.env \
     --restart=always \
+    --net host
     -p 500:500/udp \
     -p 4500:4500/udp \
     -v /lib/modules:/lib/modules:ro \
-    -v ./data:/data:rw \
+    -v /data:/data:rw \
     -d --privileged \
     arctg70/strongswan-docker
 ```
@@ -83,7 +84,7 @@ docker run \
 If you did not specify an `env` file in the `docker run` command above, `VPN_USER` will default to `vpnuser` and both `VPN_IPSEC_PSK` and `VPN_PASSWORD` will be randomly generated. To retrieve them, view the container logs:
 
 ```
-docker logs strongswan-docker
+docker logs vpnserver
 ```
 
 Search for these lines in the output:
@@ -100,7 +101,7 @@ Password: <VPN Password>
 (Optional) Backup the generated VPN login details (if any) to the current directory:
 
 ```
-docker cp ipsec-vpn-server:/opt/src/vpn-gen.env ./
+docker cp vpnserver:/opt/src/vpn-gen.env ./
 ```
 
 ### Check server status
@@ -108,13 +109,13 @@ docker cp ipsec-vpn-server:/opt/src/vpn-gen.env ./
 To check the status of your IPsec VPN server, you can pass `ipsec status` to your container like this:
 
 ```
-docker exec -it ipsec-vpn-server ipsec status
+docker exec -it vpnserver ipsec status
 ```
 
 Or display current established VPN connections:
 
 ```
-docker exec -it ipsec-vpn-server ipsec whack --trafficstatus
+docker exec -it vpnserver ipsec whack --trafficstatus
 ```
 
 ## Next steps
@@ -183,7 +184,7 @@ docker build -t hwdsl2/ipsec-vpn-server github.com/hwdsl2/docker-ipsec-vpn-serve
 To start a Bash session in the running container:
 
 ```
-docker exec -it ipsec-vpn-server env TERM=xterm bash -l
+docker exec -it vpnserver env TERM=xterm bash -l
 ```
 
 (Optional) Install the `nano` editor:
@@ -196,7 +197,7 @@ When finished, exit the container and restart if needed:
 
 ```
 exit
-docker restart ipsec-vpn-server
+docker restart vpnserver
 ```
 
 ## Technical details
