@@ -240,6 +240,8 @@ else
         --san="$VPN_USER@$PUBLIC_IP"  \
         --outform pem > client.cert.pem
 
+# Enter a password twice when you are prompted by the next command, which will 
+# combine the client key and certificate into a single Public Key Cryptography Standard (PKCS) #12 file:
     openssl pkcs12 -export -inkey client.pem -in client.cert.pem \
         -name "client" -certfile ca.cert.pem \
         -caname "StrongSwanVPN CA"  -out client.cert.p12
