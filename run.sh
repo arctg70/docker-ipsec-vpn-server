@@ -390,6 +390,7 @@ echo   '</plist> '>> tmp.mobiconfig
 mv tmp.mobiconfig $VPN_USER.mobileconfig
 
 cp $VPN_USER.mobileconfig /data
+cp ca.cert.pem /data
 
 # echo  "Sending config file to client mailbox ...."
 
