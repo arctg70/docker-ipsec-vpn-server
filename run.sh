@@ -218,8 +218,15 @@ EOF
 
 # generate cert
 
-if [ -f "/opt/src/ca.pem" ];then
+if [ -f "/data/ca.pem" ];then
     echo the ca files already has been created.
+    cp -r /data/ca.cert.pem /etc/ipsec.d/cacerts/
+    cp -r /data/server.cert.pem /etc/ipsec.d/certs/
+    cp -r /data/server.pem /etc/ipsec.d/private/
+    cp -r /data/client.cert.pem /etc/ipsec.d/certs/
+    cp -r /data/client.pem  /etc/ipsec.d/private/
+
+	
 else
     ipsec pki --gen --outform pem > ca.pem
 
@@ -394,8 +401,17 @@ echo   '</plist> '>> tmp.mobiconfig
 mv tmp.mobiconfig $VPN_USER.mobileconfig
 
 cp $VPN_USER.mobileconfig /data
+cp ca.pem /data
 cp ca.cert.pem /data
 cp client.cert.p12 /data
+
+cp  server.cert.pem /data
+cp  server.pem /data
+cp  client.cert.pem /data
+cp  client.pem  /data
+
+
+
 
 # echo  "Sending config file to client mailbox ...."
 
